@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Supabase Google OAuth Test</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        background: #0b1020;
+        color: #eef2ff;
+      }
+      .card {
+        width: min(720px, 92vw);
+        padding: 1.5rem;
+        border-radius: 14px;
+        background: #141b34;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 1.3rem;
+      }
+      .muted {
+        opacity: 0.85;
+      }
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 0.7rem 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary {
+        background: #60a5fa;
+        color: #00123b;
+      }
+      .secondary {
+        background: #263159;
+        color: #dbe6ff;
+      }
+      #status {
+        margin-top: 1rem;
+        font-size: 0.95rem;
+      }
+      #user-panel {
+        margin-top: 1rem;
+        background: rgba(6, 10, 22, 0.65);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 12px;
+        padding: 1rem;
+        display: none;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.88rem;
+      }
+      .warn {
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+        color: #fcd34d;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Google OAuth Validation App</h1>
+      <p class="muted">
+        Sign in with Google using Supabase and review the user details below.
+      </p>
+      <div class="controls">
+        <button id="google-sign-in" class="primary">Sign in with Google</button>
+        <button id="sign-out" class="secondary">Sign out</button>
+      </div>
+      <div id="status" class="muted">Checking current session...</div>
+      <section id="user-panel">
+        <h2>User Details</h2>
+        <pre id="user-json"></pre>
+      </section>
+      <p class="warn">
+        Ensure this page URL is added in Supabase Auth > URL Configuration (Site URL and Redirect URLs).
+      </p>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      const SUPABASE_URL = "https://aouffzpbeorhiadzhimc.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvdWZmenBiZW9yaGlhZHpoaW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjYzNjgsImV4cCI6MjA5MTI0MjM2OH0.cmGhkcE0K_SqaDhx9HZDRnsJAw5RTaw15WW7JcPQLMw";
+
+      const statusEl = document.getElementById("status");
+      const userPanelEl = document.getElementById("user-panel");
+      const userJsonEl = document.getElementById("user-json");
+      const signInBtn = document.getElementById("google-sign-in");
+      const signOutBtn = document.getElementById("sign-out");
+
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      function showSignedOut() {
+        statusEl.textContent = "You are signed out.";
+        userPanelEl.style.display = "none";
+        userJsonEl.textContent = "";
+      }
+
+      function showUser(user) {
+        statusEl.textContent = "Signed in successfully.";
+        userPanelEl.style.display = "block";
+        userJsonEl.textContent = JSON.stringify(
+          {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            app_metadata: user.app_metadata,
+            user_metadata: user.user_metadata,
+            identities: user.identities,
+            last_sign_in_at: user.last_sign_in_at,
+            created_at: user.created_at
+          },
+          null,
+          2
+        );
+      }
+
+      async function refreshSessionView() {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) {
+          statusEl.textContent = `Session check failed: ${error.message}`;
+          return;
+        }
+        if (!data.session?.user) {
+          showSignedOut();
+          return;
+        }
+        showUser(data.session.user);
+      }
+
+      signInBtn.addEventListener("click", async () => {
+        statusEl.textContent = "Redirecting to Google...";
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: window.location.origin + window.location.pathname
+          }
+        });
+        if (error) {
+          statusEl.textContent = `Sign-in failed: ${error.message}`;
+        }
+      });
+
+      signOutBtn.addEventListener("click", async () => {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) {
+          statusEl.textContent = `Sign-out failed: ${error.message}`;
+          return;
+        }
+        showSignedOut();
+      });
+
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          showUser(session.user);
+        } else {
+          showSignedOut();
+        }
+      });
+
+      refreshSessionView();
+    </script>
+  </body>
+</html>
