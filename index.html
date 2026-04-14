@@ -70,6 +70,16 @@
         word-break: break-word;
         font-size: 0.88rem;
       }
+      .panel-controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+      }
+      #copy-feedback {
+        font-size: 0.85rem;
+        opacity: 0.85;
+        margin: 0;
+      }
       .warn {
         margin-top: 0.75rem;
         font-size: 0.85rem;
@@ -90,6 +100,10 @@
       <div id="status" class="muted">Checking current session...</div>
       <section id="user-panel">
         <h2>User Details</h2>
+        <div class="panel-controls">
+          <button id="copy-token" class="secondary">Copy access token</button>
+          <p id="copy-feedback" class="muted"></p>
+        </div>
         <pre id="user-json"></pre>
       </section>
       <p class="warn">
@@ -106,8 +120,11 @@
       const statusEl = document.getElementById("status");
       const userPanelEl = document.getElementById("user-panel");
       const userJsonEl = document.getElementById("user-json");
+      const copyTokenBtn = document.getElementById("copy-token");
+      const copyFeedbackEl = document.getElementById("copy-feedback");
       const signInBtn = document.getElementById("google-sign-in");
       const signOutBtn = document.getElementById("sign-out");
+      let currentAccessToken = "";
 
       const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -115,11 +132,15 @@
         statusEl.textContent = "You are signed out.";
         userPanelEl.style.display = "none";
         userJsonEl.textContent = "";
+        currentAccessToken = "";
+        copyFeedbackEl.textContent = "";
       }
 
-      function showUser(user) {
+      function showUser(user, session) {
         statusEl.textContent = "Signed in successfully.";
         userPanelEl.style.display = "block";
+        currentAccessToken = session?.access_token || "";
+        copyFeedbackEl.textContent = "";
         userJsonEl.textContent = JSON.stringify(
           {
             id: user.id,
@@ -146,7 +167,7 @@
           showSignedOut();
           return;
         }
-        showUser(data.session.user);
+        showUser(data.session.user, data.session);
       }
 
       signInBtn.addEventListener("click", async () => {
@@ -171,9 +192,22 @@
         showSignedOut();
       });
 
+      copyTokenBtn.addEventListener("click", async () => {
+        if (!currentAccessToken) {
+          copyFeedbackEl.textContent = "No active token found.";
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(currentAccessToken);
+          copyFeedbackEl.textContent = "Access token copied.";
+        } catch (error) {
+          copyFeedbackEl.textContent = "Copy failed. Please allow clipboard access.";
+        }
+      });
+
       supabaseClient.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
-          showUser(session.user);
+          showUser(session.user, session);
         } else {
           showSignedOut();
         }
